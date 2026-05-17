@@ -1,0 +1,16 @@
+{
+  "name": "stockdss-v7",
+  "version": "7.0.0",
+  "description": "StockDSS v7.0 - IDX Professional Signal Engine (6-Layer System)",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "technicalindicators": "^3.1.0"
+  }
+}
