@@ -1,0 +1,10 @@
+{
+  "name": "stockdss-v8",
+  "version": "8.0.0",
+  "description": "StockDSS v8.0 - IDX Professional Signal Engine (Pro: RSI Div + Breakout/Retest + Triple Confirm)",
+  "scripts": {
+    "start": "cd backend && node server.js",
+    "dev": "cd backend && node --watch server.js",
+    "install-deps": "cd backend && npm install"
+  }
+}
