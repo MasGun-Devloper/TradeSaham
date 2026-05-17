@@ -520,11 +520,9 @@ function detectRSIDivergence(closes, highs, lows) {
   const rsiArr = safe(() => ti.RSI.calculate({ period: 14, values: closes }));
   if (!rsiArr || rsiArr.length < 20) return { bullish: false, bearish: false, type: 'NONE', strength: 0, desc: 'RSI data tidak cukup' };
 
-  // Align RSI with closes (RSI starts at index 14)
   const rsiOffset = closes.length - rsiArr.length;
   const lookback = Math.min(30, rsiArr.length - 2);
 
-  // Find recent swing lows in price (for bullish divergence)
   let swingLows = [];
   for (let i = 2; i < lookback; i++) {
     const pi = closes.length - 1 - i;
@@ -535,7 +533,6 @@ function detectRSIDivergence(closes, highs, lows) {
     }
   }
 
-  // Find recent swing highs in price (for bearish divergence)
   let swingHighs = [];
   for (let i = 2; i < lookback; i++) {
     const pi = closes.length - 1 - i;
@@ -551,11 +548,9 @@ function detectRSIDivergence(closes, highs, lows) {
 
   let bullish = false, bearish = false, type = 'NONE', strength = 0, desc = 'Tidak ada divergensi terdeteksi';
 
-  // Bullish divergence: price makes lower low, RSI makes higher low
   if (swingLows.length >= 1) {
     const prev = swingLows[0];
     const prevRsiAtLow = prev.rsi;
-    // Check: current price near recent low, RSI higher
     const recentLow = Math.min(...closes.slice(-8));
     const rsiAtRecentLow = rsiArr[rsiArr.length - 1];
     if (prev.price > recentLow && prevRsiAtLow < rsiAtRecentLow && currentPrice <= prev.price * 1.03) {
@@ -567,7 +562,6 @@ function detectRSIDivergence(closes, highs, lows) {
     }
   }
 
-  // Bearish divergence: price makes higher high, RSI makes lower high
   if (!bullish && swingHighs.length >= 1) {
     const prev = swingHighs[0];
     const recentHigh = Math.max(...closes.slice(-8));
@@ -581,7 +575,6 @@ function detectRSIDivergence(closes, highs, lows) {
     }
   }
 
-  // Hidden bullish: price higher low, RSI lower low (continuation)
   if (!bullish && !bearish && swingLows.length >= 1) {
     const prev = swingLows[0];
     const recentLow = Math.min(...closes.slice(-8));
@@ -613,18 +606,15 @@ function detectBreakoutRetest(closes, highs, lows, volumes, sr) {
   const lastVol = volumes[n - 1];
   const volRatio = avgVol20 > 0 ? lastVol / avgVol20 : 1;
 
-  // Gather key resistance & support levels
   const resistances = (sr.resistances || []).slice(0, 5);
   const supports = (sr.supports || []).slice(0, 5);
 
   let breakout = false, retest = false, type = 'NONE', score = 0, desc = '';
   let breakoutLevel = null, retestLevel = null;
 
-  // --- Check breakout above resistance ---
   for (const res of resistances) {
     const lvl = res.price;
-    const tolerance = lvl * 0.012; // 1.2% tolerance
-    // Current candle broke above
+    const tolerance = lvl * 0.012;
     if (price > lvl + tolerance && prevPrice <= lvl + tolerance) {
       breakout = true;
       type = 'BREAKOUT_UP';
@@ -637,13 +627,10 @@ function detectBreakoutRetest(closes, highs, lows, volumes, sr) {
     }
   }
 
-  // --- Check retest of broken resistance (now support) ---
   if (!breakout) {
-    // Look for breakout in last 5-15 candles, now price pulling back to retest
     const recentHigh = Math.max(...closes.slice(-15, -1));
     for (const res of resistances) {
       const lvl = res.price;
-      // If recent high was above this level and now price is near it from above
       if (recentHigh > lvl * 1.01 && price >= lvl * 0.985 && price <= lvl * 1.025) {
         retest = true;
         type = 'RETEST_SUPPORT';
@@ -657,7 +644,6 @@ function detectBreakoutRetest(closes, highs, lows, volumes, sr) {
     }
   }
 
-  // --- Check breakdown below support ---
   if (!breakout && !retest) {
     for (const sup of supports) {
       const lvl = sup.price;
@@ -677,7 +663,6 @@ function detectBreakoutRetest(closes, highs, lows, volumes, sr) {
     score = 5;
   }
 
-  // Institutional footprint bonus
   const body = Math.abs(closes[n-1] - (closes[n-2] || closes[n-1]));
   const range = highs[n-1] - lows[n-1];
   const instFP = range > 0 && body/range > 0.65 && volRatio >= 1.4 && closes[n-1] > (highs[n-1] + lows[n-1]) / 2;
@@ -693,14 +678,12 @@ function detectBreakoutRetest(closes, highs, lows, volumes, sr) {
 
 // ═══════════════════════════════════════════
 // PRO LAYER C: TRIPLE CONFIRMATION ENGINE
-// (MACD cross + MTF align + Volume gate)
 // ═══════════════════════════════════════════
 function calcTripleConfirmation(tech, mtf, vol, bandar, divergence, breakoutRetest) {
   const confirmations = [];
   const failures = [];
   let tripleScore = 0;
 
-  // --- PILLAR 1: MACD Cross ---
   const macdBull = tech.macd && tech.macd.MACD > tech.macd.signal;
   const macdStrong = tech.macd && Math.abs(tech.macd.MACD - tech.macd.signal) > Math.abs(tech.macd.MACD) * 0.05;
   if (macdBull) {
@@ -710,7 +693,6 @@ function calcTripleConfirmation(tech, mtf, vol, bandar, divergence, breakoutRete
     failures.push({ icon: '📉', label: 'MACD Bearish', value: tech.macd ? `${tech.macd.MACD?.toFixed(2)}` : '–', status: 'fail' });
   }
 
-  // --- PILLAR 2: MTF Alignment ---
   const mtfBull = mtf && mtf.totalScore >= 3.5;
   const mtfStrong = mtf && mtf.totalScore >= 4.5;
   if (mtfStrong) {
@@ -723,7 +705,6 @@ function calcTripleConfirmation(tech, mtf, vol, bandar, divergence, breakoutRete
     failures.push({ icon: '⚠', label: 'MTF Tidak Aligned', value: `${mtf?.totalScore ?? 0}/6 TF`, status: 'fail' });
   }
 
-  // --- PILLAR 3: Volume Gate ---
   const volPass = vol && vol.volumeGate;
   const volStrong = vol && vol.volRatio >= 2.0;
   if (volStrong) {
@@ -736,7 +717,6 @@ function calcTripleConfirmation(tech, mtf, vol, bandar, divergence, breakoutRete
     failures.push({ icon: '🔇', label: 'Volume Insufficient', value: `${vol?.volRatio ?? '–'}× avg`, status: 'fail' });
   }
 
-  // --- BONUS: RSI Divergence ---
   if (divergence?.bullish) {
     tripleScore += 15;
     confirmations.push({ icon: '🔀', label: 'RSI Bullish Divergence', value: `Strength ${divergence.strength}`, status: 'bonus' });
@@ -748,7 +728,6 @@ function calcTripleConfirmation(tech, mtf, vol, bandar, divergence, breakoutRete
     failures.push({ icon: '🔀', label: 'RSI Bearish Divergence', value: `⚠ Reversal risk`, status: 'fail' });
   }
 
-  // --- BONUS: Breakout/Retest ---
   if (breakoutRetest?.breakout && breakoutRetest.type === 'BREAKOUT_UP') {
     tripleScore += 15;
     confirmations.push({ icon: '🚀', label: 'Breakout Resistance', value: `Vol ${breakoutRetest.volRatio}×`, status: 'bonus' });
@@ -760,7 +739,6 @@ function calcTripleConfirmation(tech, mtf, vol, bandar, divergence, breakoutRete
     failures.push({ icon: '📉', label: 'Breakdown Support', value: '⚠ Avoid entry', status: 'fail' });
   }
 
-  // --- BONUS: Smart Money ---
   if (bandar?.smScore >= 70) {
     tripleScore += 10;
     confirmations.push({ icon: '🐋', label: 'Smart Money Akumulasi', value: `Score ${bandar.smScore}/100`, status: 'bonus' });
@@ -979,7 +957,6 @@ app.post('/api/analyze', async (req, res) => {
     if(!raw) return res.status(400).json({error:'Symbol tidak boleh kosong.'});
     const ticker=`${raw}.JK`;
 
-    // Fetch paralel: data saham + IHSG + MTF
     const [d, ihsgResult, mtf] = await Promise.all([
       fetchStockData(raw),
       fetchYahooChart('^JKSE').then(extractOHLCV).catch(()=>null),
@@ -996,7 +973,6 @@ app.post('/api/analyze', async (req, res) => {
     const fp     = buildFingerprint(tech, vol, bandar, mtf, regime);
     const prob   = calcSignalProbability(d.closes, d.highs, d.lows, d.volumes, fp);
     const composite = calcCompositeSignal(mtf, sr, regime, vol, prob, tech, bandar);
-    // PRO layers
     const divergence     = detectRSIDivergence(d.closes, d.highs, d.lows);
     const breakoutRetest = detectBreakoutRetest(d.closes, d.highs, d.lows, d.volumes, sr);
     const tripleConfirm  = calcTripleConfirmation(tech, mtf, vol, bandar, divergence, breakoutRetest);
@@ -1018,9 +994,7 @@ app.post('/api/analyze', async (req, res) => {
       fundamentals:d.fundamental,
       bandarAnalysis:bandar,
       scalpingAnalysis:scalp,
-      // v7 fields
       signalV7:composite,
-      // PRO fields
       rsiDivergence:divergence,
       breakoutRetest:breakoutRetest,
       tripleConfirmation:tripleConfirm,
@@ -1092,7 +1066,7 @@ app.get('/api/sector-rotation', async (req, res) => {
   try {
     const sectorResults = [];
     for (const [sector, syms] of Object.entries(SECTOR_UNIVERSE)) {
-      const sample = syms.slice(0, 4); // Analyze top 4 per sector for speed
+      const sample = syms.slice(0, 4);
       const stockResults = await Promise.allSettled(sample.map(async sym => {
         try {
           const d = await fetchStockData(sym);
@@ -1150,7 +1124,7 @@ app.get('/api/sector-rotation', async (req, res) => {
   }
 });
 
-// ─── API: /api/backtest (Strict 7-Gate Pro Filter) ──────────────
+// ─── API: /api/backtest ───────────────────
 app.post('/api/backtest', async (req, res) => {
   try {
     const raw = (req.body.symbol ?? '').toString().toUpperCase().replace(/\.JK$/i,'').trim();
@@ -1180,33 +1154,25 @@ app.post('/api/backtest', async (req, res) => {
       const brk    = detectBreakoutRetest(wC, wH, wL, wV, sr);
       const div    = detectRSIDivergence(wC, wH, wL);
 
-      // Gate 1: RSI ideal zone
       const rsi = tech.rsi;
       if (!rsi || rsi < 35 || rsi > 68) continue;
 
-      // Gate 2: MACD must be bullish
       if (!tech.macd || tech.macd.MACD <= tech.macd.signal) continue;
 
-      // Gate 3: Volume gate
       if (!vol || vol.volRatio < 1.3) continue;
 
-      // Gate 4: Smart money not distributing
       const smScore = bandar?.smScore ?? 50;
       if (smScore < 50) continue;
 
-      // Gate 5: Price in uptrend context
       const price = wC[wC.length - 1];
       const inUptrend = (tech.ma20 && price >= tech.ma20 * 0.97) ||
                         (tech.ma20 && tech.ma50 && tech.ma20 > tech.ma50);
       if (!inUptrend) continue;
 
-      // Gate 6: No bearish divergence
       if (div?.bearish) continue;
 
-      // Gate 7: No breakdown
       if (brk?.type === 'BREAKDOWN_DOWN') continue;
 
-      // Lightweight MTF proxy via MA slopes
       const closes30 = wC.slice(-30);
       const ma5  = closes30.slice(-5).reduce((a,b)=>a+b,0)/5;
       const ma10 = closes30.slice(-10).reduce((a,b)=>a+b,0)/10;
@@ -1221,8 +1187,7 @@ app.post('/api/backtest', async (req, res) => {
       const mtfBull = mtfScore >= 3;
       const volPass = vol.volumeGate;
 
-      // Quality score
-      let qScore = 25; // MACD pass
+      let qScore = 25;
       if (mtfBull) qScore += mtfScore >= 5 ? 30 : 18;
       if (volPass) qScore += vol.volRatio >= 2.0 ? 25 : 15;
       if (div?.bullish)              qScore += 15;
@@ -1239,7 +1204,6 @@ app.post('/api/backtest', async (req, res) => {
       const isTriple = pillarsPass === 3 && qScore >= 65;
       const signal   = isTriple ? 'TRIPLE ✅' : 'DOUBLE ⚡';
 
-      // Dynamic exit: SL -5% | TP +8% | 10 bars
       const entryPrice = closes[i];
       const slPrice    = entryPrice * 0.95;
       const tpPrice    = entryPrice * 1.08;
@@ -1315,11 +1279,12 @@ app.post('/api/backtest', async (req, res) => {
 
 app.get('/', (_,res) => res.sendFile(path.join(__dirname,'../frontend/index.html')));
 
-app.listen(PORT, () => {
+// ⭐ PASTIKAN INI YANG DIGUNAKAN UNTUK RAILWAY ⭐
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`
   ╔══════════════════════════════════════════════╗
   ║  StockDSS v8.0 — IDX Professional Signal     ║
-  ║  http://localhost:${PORT}                        ║
+  ║  Server running on port ${PORT}                 ║
   ║                                              ║
   ║  ✦ Layer 1: Multi-Timeframe Alignment        ║
   ║  ✦ Layer 2: Dynamic Support & Resistance     ║
@@ -1327,6 +1292,8 @@ app.listen(PORT, () => {
   ║  ✦ Layer 4: Volume Confirmation Gate         ║
   ║  ✦ Layer 5: Signal Probability Engine        ║
   ║  ✦ Layer 6: Composite Signal Engine          ║
+  ║  ✦ Pro: RSI Divergence + Breakout/Retest     ║
+  ║  ✦ Pro: Triple Confirmation Engine           ║
   ╚══════════════════════════════════════════════╝
   `);
 });
